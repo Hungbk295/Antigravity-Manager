@@ -358,31 +358,45 @@ response = client.chat.completions.create(
 ## 📝 开发者与社区
 
 *   **版本演进 (Changelog)**:
-        -   **v4.0.2 (2026-01-26)**:
-            -   **[核心修复] 开启“访问授权”导致的重复认证与 401 循环 (Fix Issue #1163)**:
-                - 修正后端鉴权中间件逻辑，确保在鉴权关闭模式下管理接口不再强制拦截。
-                - 增强健康检查路径 (`/api/health`) 豁免，避免 UI 加载初期因检测失败触发登录。
-                - 前端请求层引入 401 异常防抖锁，彻底解决大批量请求失败导致的 UI 弹窗抖动。
-            -   **[核心修复] 切换账号后会话无法持久化保存 (Fix Issue #1159)**:
-                - 增强数据库注入逻辑，在切换账号时同步更新身份标识并清除旧 UserID 缓存。
-                - 解决因 Token 与身份标识不匹配导致客户端无法正确关联或保存新会话的问题。
-            -   **[核心修复] Docker/Web 模式下模型映射持久化 (Fix Issue #1149)**:
-                - 修复管理员通过 API 修改的模型映射配置在远程部署模式下无法持久化存盘的问题。
-                - 确保配置在容器重启后依然生效。
-            -   **[架构优化] MCP 工具支持架构全面升级 (Schema Cleaning & Tool Adapters)**:
-                - **约束语义回填**: 实现智能约束迁移，将 Gemini 不支持的约束字段自动转为描述提示。
-                - **anyOf/oneOf 智能扁平化**: 重写 `extract_best_schema_from_union` 函数，基于评分机制选择最佳类型并保留所有可能类型提示。
-                - **插件化工具适配器层**: 创建 `ToolAdapter` trait，为 Pencil 等 MCP 工具提供定制化 Schema 处理。
+    *   **v4.0.2 (2026-01-26)**:
+        -   **[核心修复] 解决开启“访问授权”导致的重复认证与 401 循环 (Fix Issue #1163)**:
+            - 修正了后端鉴权中间件逻辑，确保在鉴权关闭模式（Off/Auto）下管理接口不再强制拦截。
+            - 增强了健康检查路径 (`/api/health`) 的免鉴权豁免，避免 UI 加载初期因状态检测失败触发登录。
+            - 在前端请求层引入了 401 异常频率限制（防抖锁），彻底解决了大批量请求失败导致的 UI 弹窗抖动。
+        -   **[核心修复] 解决切换账号后会话无法持久化保存 (Fix Issue #1159)**:
+            - 增强了数据库注入逻辑，在切换账号时同步更新身份标识（Email）并清除旧的 UserID 缓存。
+            - 解决了因 Token 与身份标识不匹配导致客户端无法正确关联或保存新会话的问题。
+        -   **[核心修复] Docker/Web 模式下模型映射持久化 (Fix Issue #1149)**:
+            - 修复了在 Docker 或 Web 部署模式下，管理员通过 API 修改的模型映射配置（Model Mapping）无法保存到硬盘的问题。
+            - 确保 `admin_update_model_mapping` 接口正确调用持久化逻辑，配置在重启容器后依然生效。
+        -   **[架构优化] MCP 工具支持架构全面升级 (Schema Cleaning & Tool Adapters)**:
+            - **约束语义回填 (Constraint Hints)**:
+                - 实现了智能约束迁移机制，在删除 Gemini 不支持的约束字段(`minLength`, `pattern`, `format` 等)前，自动将其转化为描述提示。
+                - 新增 `CONSTRAINT_FIELDS` 常量和 `move_constraints_to_description` 函数，确保模型能通过描述理解原始约束。
+                - 示例: `{"minLength": 5}` → `{"description": "[Constraint: minLen: 5]"}`
+            - **anyOf/oneOf 智能扁平化增强**:
+                - 重写 `extract_best_schema_from_union` 函数，使用评分机制选择最佳类型(object > array > scalar)。
+                - 在合并后自动添加 `"Accepts: type1 | type2"` 提示到描述中，保留所有可能类型的信息。
+                - 新增 `get_schema_type_name` 函数，支持显式类型和结构推断。
+            - **插件化工具适配器层 (Tool Adapter System)**:
+                - 创建 `ToolAdapter` trait，为不同 MCP 工具提供定制化 Schema 处理能力。
+                - 实现 `PencilAdapter`，自动为 Pencil 绘图工具的视觉属性(`cornerRadius`, `strokeWidth`)和路径参数添加说明。
+                - 建立全局适配器注册表，支持通过 `clean_json_schema_for_tool` 函数应用工具特定优化。
             - **高性能缓存层 (Schema Cache)**:
                 - 实现基于 SHA-256 哈希的 Schema 缓存机制，避免重复清洗相同的 Schema。
                 - 采用 LRU 淘汰策略，最大缓存 1000 条，内存占用 < 10MB。
                 - 提供 `clean_json_schema_cached` 函数和缓存统计功能，预计性能提升 60%+。
-                - **影响**: ✅ 提升模型理解力；✅ 插件化基础；✅ 25 项测试全通。
-            -   **[安全增强] Web UI 管理后台密码与 API Key 分离 (Fix Issue #1139)**:
-                - **独立密码配置**: 支持通过 `ABV_WEB_PASSWORD` 或 `WEB_PASSWORD` 设置独立管理后台登录密码。
-                - **智能鉴权逻辑**: 管理接口优先验证独立密码，AI 代理接口严格使用 `API_KEY` 认证，实现权限隔离。
-                - **配置 UI 支持**: 新增管理密码编辑项，支持一键找回或修改。
-                - **日志引导**: Headless 模式启动时清晰打印 API Key 与 Web UI Password 的状态。
+            - **影响范围**: 
+                - ✅ 显著提升 MCP 工具(如 Pencil)的 Schema 兼容性和模型理解能力
+                - ✅ 为未来添加更多 MCP 工具(filesystem, database 等)奠定了插件化基础
+                - ✅ 完全向后兼容，所有 25 项测试通过
+        -   **[安全增强] Web UI 管理后台密码与 API Key 分离 (Fix Issue #1139)**:
+            - **独立密码配置**: 支持通过 `ABV_WEB_PASSWORD` 或 `WEB_PASSWORD` 环境变量设置独立的管理后台登录密码。
+            - **智能鉴权逻辑**: 
+                - 管理接口优先验证独立密码，未设置时自动回退验证 `API_KEY`（确保向后兼容）。
+                - AI 代理接口严格仅允许使用 `API_KEY` 进行认证，实现权限隔离。
+            - **配置 UI 支持**: 在“仪表盘-服务配置”中新增管理密码编辑项，支持一键找回或修改。
+            - **日志引导**: Headless 模式启动时会清晰打印 API Key 与 Web UI Password 的状态及查看方式。
     *   **v4.0.1 (2026-01-26)**:
         -   **[UX 优化] 主题与语言切换平滑度**:
             - 解决了主题和语言切换时的 UI 卡顿问题，将配置持久化逻辑与状态更新解耦。

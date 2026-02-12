@@ -265,6 +265,8 @@ print(response.choices[0].message.content)
 
 *   **Changelog**:
     *   **v4.1.16 (2026-02-12)**:
+        -   **[UI Fix] Resolve indentation inconsistency in API proxy Python templates (PR #1879)**:
+            -   **Display Optimization**: Removed redundant leading spaces from Python code integration snippets to ensure copied code is immediately runnable without manual indentation adjustments.
         -   **[Core Fix] Resolve effortLevel conflict in Gemini Image Generation caused by keyword matching (PR #1873)**:
             -   **Logic Conflict Fix**: Completely fixed the HTTP 400 error where `gemini-3-pro-image` and its 4k/2k variants were incorrectly identified as supporting Adaptive Thinking due to the `gemini-3-pro` keyword, leading to the erroneous injection of `effortLevel`.
             -   **Parameter Scrubbing**: Added specific filtering for image generation models at the proxy layer to ensure incompatible generation parameters are no longer injected into non-thinking models.
